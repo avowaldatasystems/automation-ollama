@@ -63,22 +63,6 @@ department wise employee count
 average salary by department
 ```
 
-### Context Memory
-
-The assistant remembers previous conversation context.
-
-Example:
-
-```text
-Q: how many cities?
-
-A: 7
-
-Q: what are they?
-```
-
-The assistant understands follow-up questions.
-
 ---
 
 # Tech Stack
