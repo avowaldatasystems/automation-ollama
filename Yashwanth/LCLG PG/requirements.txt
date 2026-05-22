@@ -1,0 +1,11 @@
+streamlit
+fastapi
+uvicorn
+sqlalchemy
+psycopg2
+pandas
+openpyxl
+langgraph
+langchain
+langchain-ollama
+typing-extensions
