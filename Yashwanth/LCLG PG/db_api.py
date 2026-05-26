@@ -36,9 +36,7 @@ def get_by_age(
                 FROM employees
                 WHERE age > :age
             """),
-            {
-                "age": age
-            }
+            {"age": age}
         )
 
         count = count_result.scalar()
@@ -50,9 +48,7 @@ def get_by_age(
                 WHERE age > :age
                 LIMIT 100
             """),
-            {
-                "age": age
-            }
+            {"age": age}
         )
 
         rows = result.fetchall()
@@ -82,9 +78,7 @@ def get_by_salary(
                 FROM employees
                 WHERE salary > :salary
             """),
-            {
-                "salary": salary
-            }
+            {"salary": salary}
         )
 
         count = count_result.scalar()
@@ -96,9 +90,7 @@ def get_by_salary(
                 WHERE salary > :salary
                 LIMIT 100
             """),
-            {
-                "salary": salary
-            }
+            {"salary": salary}
         )
 
         rows = result.fetchall()
@@ -129,9 +121,7 @@ def get_by_city(
                 WHERE LOWER(city)
                 = LOWER(:city)
             """),
-            {
-                "city": city
-            }
+            {"city": city}
         )
 
         count = count_result.scalar()
@@ -144,9 +134,7 @@ def get_by_city(
                 = LOWER(:city)
                 LIMIT 100
             """),
-            {
-                "city": city
-            }
+            {"city": city}
         )
 
         rows = result.fetchall()
@@ -177,9 +165,7 @@ def get_by_department(
                 WHERE LOWER(department)
                 = LOWER(:department)
             """),
-            {
-                "department": department
-            }
+            {"department": department}
         )
 
         count = count_result.scalar()
@@ -192,9 +178,7 @@ def get_by_department(
                 = LOWER(:department)
                 LIMIT 100
             """),
-            {
-                "department": department
-            }
+            {"department": department}
         )
 
         rows = result.fetchall()
@@ -206,6 +190,8 @@ def get_by_department(
             for row in rows
         ]
     }
+
+
 # -----------------------------------
 # DESIGNATION API
 # -----------------------------------
@@ -223,9 +209,7 @@ def get_by_designation(
                 WHERE LOWER(designation)
                 = LOWER(:designation)
             """),
-            {
-                "designation": designation
-            }
+            {"designation": designation}
         )
 
         count = count_result.scalar()
@@ -238,9 +222,7 @@ def get_by_designation(
                 = LOWER(:designation)
                 LIMIT 100
             """),
-            {
-                "designation": designation
-            }
+            {"designation": designation}
         )
 
         rows = result.fetchall()
@@ -271,9 +253,7 @@ def get_by_experience(
                 WHERE experience_years
                 > :years
             """),
-            {
-                "years": years
-            }
+            {"years": years}
         )
 
         count = count_result.scalar()
@@ -286,9 +266,7 @@ def get_by_experience(
                 > :years
                 LIMIT 100
             """),
-            {
-                "years": years
-            }
+            {"years": years}
         )
 
         rows = result.fetchall()
@@ -319,10 +297,7 @@ def get_by_employment_type(
                 WHERE LOWER(employment_type)
                 = LOWER(:employment_type)
             """),
-            {
-                "employment_type":
-                employment_type
-            }
+            {"employment_type": employment_type}
         )
 
         count = count_result.scalar()
@@ -335,10 +310,7 @@ def get_by_employment_type(
                 = LOWER(:employment_type)
                 LIMIT 100
             """),
-            {
-                "employment_type":
-                employment_type
-            }
+            {"employment_type": employment_type}
         )
 
         rows = result.fetchall()
@@ -369,9 +341,7 @@ def get_by_manager(
                 WHERE LOWER(manager_name)
                 = LOWER(:manager)
             """),
-            {
-                "manager": manager
-            }
+            {"manager": manager}
         )
 
         count = count_result.scalar()
@@ -384,9 +354,7 @@ def get_by_manager(
                 = LOWER(:manager)
                 LIMIT 100
             """),
-            {
-                "manager": manager
-            }
+            {"manager": manager}
         )
 
         rows = result.fetchall()
@@ -417,9 +385,7 @@ def get_by_gender(
                 WHERE LOWER(gender)
                 = LOWER(:gender)
             """),
-            {
-                "gender": gender
-            }
+            {"gender": gender}
         )
 
         count = count_result.scalar()
@@ -432,9 +398,7 @@ def get_by_gender(
                 = LOWER(:gender)
                 LIMIT 100
             """),
-            {
-                "gender": gender
-            }
+            {"gender": gender}
         )
 
         rows = result.fetchall()
@@ -521,125 +485,124 @@ def create_employee(
                     RETURNING employee_id
                 """),
                 {
-                    "employee_name":
-                    employee.employee_name,
-
-                    "age":
-                    employee.age,
-
-                    "gender":
-                    employee.gender,
-
-                    "department":
-                    employee.department,
-
-                    "designation":
-                    employee.designation,
-
-                    "salary":
-                    employee.salary,
-
-                    "experience_years":
-                    employee.experience_years,
-
-                    "city":
-                    employee.city,
-
-                    "manager_name":
-                    employee.manager_name,
-
-                    "employment_type":
-                    employee.employment_type
+                    "employee_name": employee.employee_name,
+                    "age": employee.age,
+                    "gender": employee.gender,
+                    "department": employee.department,
+                    "designation": employee.designation,
+                    "salary": employee.salary,
+                    "experience_years": employee.experience_years,
+                    "city": employee.city,
+                    "manager_name": employee.manager_name,
+                    "employment_type": employee.employment_type
                 }
             )
 
-            employee_id = (
-                result.scalar()
-            )
+            row = result.fetchone()
+            employee_id = row[0] if row else None
 
         return {
-            "message":
-            "Employee added successfully",
-
-            "employee_id":
-            employee_id
+            "message": "Employee added successfully",
+            "employee_id": int(employee_id) if employee_id else None
         }
 
     except Exception as e:
 
-        return {
-            "error":
-            str(e)
-        }
-    # -----------------------------------
+        return {"error": str(e)}
+
+
+# -----------------------------------
 # UPDATE EMPLOYEE API
 # -----------------------------------
 @app.put("/employees/{employee_id}")
 def update_employee(
     employee_id: int,
-    employee: EmployeeUpdate
+    employee: dict
 ):
 
     try:
 
-        update_data = (
-            employee.dict(
-                exclude_unset=True
-            )
-        )
-
-        if not update_data:
-
-            return {
-                "message":
-                "No fields provided "
-                "for update"
-            }
-
-        set_clause = ", ".join(
-            [
-                f"{key} = :{key}"
-                for key
-                in update_data.keys()
-            ]
-        )
-
-        update_data[
-            "employee_id"
-        ] = employee_id
-
         with engine.begin() as conn:
 
+            # -------------------------
+            # Get existing employee
+            # -------------------------
             result = conn.execute(
-                text(f"""
-                    UPDATE employees
-                    SET {set_clause}
-                    WHERE employee_id
-                    = :employee_id
+                text("""
+                    SELECT *
+                    FROM employees
+                    WHERE employee_id = :id
                 """),
-                update_data
+                {
+                    "id": employee_id
+                }
             )
 
-        if result.rowcount == 0:
+            existing = result.fetchone()
 
-            return {
-                "message":
-                "Employee ID "
-                "not found"
-            }
+            if not existing:
+
+                return {
+                    "error":
+                    "Employee not found"
+                }
+
+            existing = dict(
+                existing._mapping
+            )
+
+            # -------------------------
+            # Keep old values
+            # Update only sent fields
+            # -------------------------
+            merged_data = existing.copy()
+
+            for key, value in employee.items():
+
+                if value is not None:
+
+                    merged_data[key] = value
+
+            # remove employee_id
+            merged_data.pop(
+                "employee_id",
+                None
+            )
+
+            update_query = text("""
+                UPDATE employees
+                SET
+                    employee_name = :employee_name,
+                    age = :age,
+                    gender = :gender,
+                    department = :department,
+                    designation = :designation,
+                    salary = :salary,
+                    experience_years = :experience_years,
+                    city = :city,
+                    manager_name = :manager_name,
+                    employment_type = :employment_type
+                WHERE employee_id = :employee_id
+            """)
+
+            merged_data[
+                "employee_id"
+            ] = employee_id
+
+            conn.execute(
+                update_query,
+                merged_data
+            )
 
         return {
             "message":
-            "Employee updated "
-            "successfully",
+            "Employee updated successfully",
 
             "employee_id":
             employee_id,
 
             "updated_fields":
-            list(
-                update_data.keys()
-            )[:-1]
+            list(employee.keys())
         }
 
     except Exception as e:
@@ -648,7 +611,6 @@ def update_employee(
             "error":
             str(e)
         }
-
 
 # -----------------------------------
 # DELETE EMPLOYEE API
@@ -656,96 +618,91 @@ def update_employee(
 @app.delete("/employees/{employee_id}")
 def delete_employee(
     employee_id: int,
-    confirm: bool = Query(
-        False
-    )
+    confirm: bool = Query(False)
 ):
 
     try:
 
         with engine.begin() as conn:
 
-            employee_result = (
-                conn.execute(
-                    text("""
-                        SELECT
-                        employee_name
-                        FROM employees
-                        WHERE employee_id
-                        = :employee_id
-                    """),
-                    {
-                        "employee_id":
-                        employee_id
-                    }
-                )
+            employee_result = conn.execute(
+                text("""
+                    SELECT employee_name
+                    FROM employees
+                    WHERE employee_id = :employee_id
+                """),
+                {"employee_id": employee_id}
             )
 
-            employee = (
-                employee_result
-                .fetchone()
-            )
+            employee = employee_result.fetchone()
 
             if not employee:
 
-                return {
-                    "message":
-                    "Employee ID "
-                    "not found"
-                }
+                return {"error": "Employee ID not found"}
 
-            employee_name = (
-                employee[0]
-            )
+            employee_name = employee[0]
 
             if not confirm:
 
                 return {
                     "message":
-                    f"Are you sure "
-                    f"you want to "
-                    f"delete employee "
-                    f"'{employee_name}' "
-                    f"(ID: "
-                    f"{employee_id})?",
-
-                    "confirmation_required":
-                    True,
-
+                    f"Are you sure you want to delete "
+                    f"'{employee_name}' (ID: {employee_id})?",
+                    "confirmation_required": True,
                     "how_to_confirm":
-                    f"/employees/"
-                    f"{employee_id}"
-                    f"?confirm=true"
+                    f"/employees/{employee_id}?confirm=true"
                 }
 
             conn.execute(
                 text("""
-                    DELETE
-                    FROM employees
-                    WHERE employee_id
-                    = :employee_id
+                    DELETE FROM employees
+                    WHERE employee_id = :employee_id
                 """),
-                {
-                    "employee_id":
-                    employee_id
-                }
+                {"employee_id": employee_id}
             )
 
         return {
-            "message":
-            "Employee deleted "
-            "successfully",
-
-            "employee_id":
-            employee_id,
-
-            "employee_name":
-            employee_name
+            "message": "Employee deleted successfully",
+            "employee_id": employee_id,
+            "employee_name": employee_name
         }
 
     except Exception as e:
 
-        return {
-            "error":
-            str(e)
-        }
+        return {"error": str(e)}
+
+
+# -----------------------------------
+# GET EMPLOYEE BY ID API
+# KEEP THIS LAST — dynamic route must
+# come after all static routes
+# -----------------------------------
+@app.get("/employees/{employee_id}")
+def get_employee_by_id(
+    employee_id: int
+):
+
+    try:
+
+        with engine.connect() as conn:
+
+            result = conn.execute(
+                text("""
+                    SELECT *
+                    FROM employees
+                    WHERE employee_id = :employee_id
+                """),
+                {"employee_id": employee_id}
+            )
+
+            row = result.fetchone()
+
+        if not row:
+
+            return {"error": "Employee ID not found"}
+
+        return dict(row._mapping)
+
+    except Exception as e:
+
+        return {"error": str(e)}

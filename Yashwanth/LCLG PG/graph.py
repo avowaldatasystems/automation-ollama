@@ -61,6 +61,33 @@ def format_count_response(data):
     )
 
 
+def format_employee(data):
+    """
+    Formats a single employee record
+    showing all 11 fields clearly.
+    """
+
+    fields = [
+        ("Employee ID",      data.get("employee_id")),
+        ("Name",             data.get("employee_name")),
+        ("Age",              data.get("age")),
+        ("Gender",           data.get("gender")),
+        ("Department",       data.get("department")),
+        ("Designation",      data.get("designation")),
+        ("Salary",           data.get("salary")),
+        ("Experience Years", data.get("experience_years")),
+        ("City",             data.get("city")),
+        ("Manager",          data.get("manager_name")),
+        ("Employment Type",  data.get("employment_type")),
+    ]
+
+    return "\n".join(
+        f"{label}: {value}"
+        for label, value in fields
+        if value is not None
+    )
+
+
 def extract_numbers(text):
 
     return [
@@ -203,6 +230,54 @@ def employee_query(state):
                 break
 
     # ==================================================
+    # CAPABILITY QUESTIONS
+    # e.g. "can you delete an employee?"
+    # ==================================================
+    capability_keywords = [
+        "can you", "can i", "how do i",
+        "how to", "what can you", "what can i",
+        "is it possible", "are you able",
+        "do you support", "do you have"
+    ]
+
+    capability_actions = [
+        "delete", "remove", "create", "add",
+        "update", "edit", "change", "modify",
+        "search", "find", "get", "show",
+        "fetch", "list", "view"
+    ]
+
+    if any(kw in question_lower for kw in capability_keywords):
+
+        if any(
+            action in question_lower
+            for action in capability_actions
+        ):
+
+            state["response"] = (
+                "Yes! Here's what I can do:\n\n"
+                "READ:\n"
+                "- Search employees by age, salary, city, "
+                "department, designation, gender, "
+                "employment type, manager, or experience\n"
+                "- Get full employee details by ID: "
+                "'show employee 42' or 'get employee id 42'\n"
+                "- Ask complex questions like 'top 5 highest paid' "
+                "or 'average salary by department'\n\n"
+                "WRITE:\n"
+                "- Create employee: 'create employee name John age 30...'\n"
+                "- Update employee: 'update employee id 42 salary to 90000'\n"
+                "- Delete employee: 'delete employee 42'"
+            )
+
+            _save_memory(
+                state, chat_history,
+                original_question
+            )
+
+            return state
+
+    # ==================================================
     # INTENT DETECTION — WRITE OPERATIONS
     # ==================================================
 
@@ -211,8 +286,10 @@ def employee_query(state):
     # --------------------------------------------------
     create_keywords = [
         "add employee", "create employee",
+        "create an employee", "add an employee",
         "new employee", "add a new", "insert employee",
-        "register employee", "onboard employee"
+        "register employee", "onboard employee",
+        "create a new employee"
     ]
 
     if any(kw in question_lower for kw in create_keywords):
@@ -232,25 +309,59 @@ def employee_query(state):
     # UPDATE EMPLOYEE
     # --------------------------------------------------
     update_keywords = [
-        "update employee", "edit employee",
-        "change employee", "modify employee",
-        "update salary", "change salary",
-        "update department", "change department",
-        "update designation", "change designation",
-        "update city", "change city",
-        "update age", "change age",
-        "update manager", "change manager",
-        "update employment", "change employment"
+        "update",
+        "edit",
+        "change",
+        "modify",
+
+        "update employee",
+        "edit employee",
+        "change employee",
+        "modify employee",
+
+        "name to",
+        "salary to",
+        "city to",
+        "department to",
+        "designation to",
+        "gender to",
+        "manager to",
+        "experience to",
+        "employment type to",
+        "employment to",
+        "age to"
     ]
 
-    if any(kw in question_lower for kw in update_keywords):
+    is_update_request = (
+        any(
+            kw in question_lower
+            for kw in update_keywords
+        )
+        and (
+            "employee" in question_lower
+            or "id" in question_lower
+        )
+        and extract_employee_id(
+            question_lower
+        ) is not None
+    )
 
-        state["response"] = _handle_update(
-            question, question_lower
+    if is_update_request:
+
+        print(
+            "UPDATE ROUTE TRIGGERED"
+        )
+
+        state["response"] = (
+            _handle_update(
+                question,
+                question_lower
+            )
         )
 
         _save_memory(
-            state, chat_history,
+            state,
+            chat_history,
             original_question
         )
 
@@ -277,6 +388,66 @@ def employee_query(state):
         )
 
         return state
+        # ==================================================
+    # GET EMPLOYEE BY ID
+    # Triggers on: "employee 42", "show employee 42",
+    # "get employee id 42", "details of 42",
+    # "employee id 42", "fetch employee 42"
+    # ==================================================
+    id_keywords = [
+        "employee id", "employee no",
+        "employee number", "show employee",
+        "get employee", "fetch employee",
+        "details of employee", "info of employee",
+        "tell me about employee", "who is employee",
+        "employee details", "employee info"
+    ]
+
+    id_triggered = any(
+        kw in question_lower
+        for kw in id_keywords
+    )
+
+    # Also trigger on bare "employee <number>"
+    # e.g. "employee 42"
+    bare_employee_id = re.search(
+        r'\bemployee\s+(\d+)\b',
+        question_lower
+    )
+
+    if id_triggered or bare_employee_id:
+
+        emp_id = (
+            int(bare_employee_id.group(1))
+            if bare_employee_id
+            else extract_employee_id(question_lower)
+        )
+
+        if emp_id:
+
+            response = requests.get(
+                f"{BASE_URL}/employees/{emp_id}"
+            )
+
+            data = response.json()
+
+            if "error" in data:
+
+                state["response"] = (
+                    f"Employee ID {emp_id} not found."
+                )
+
+            else:
+
+                state["response"] = format_employee(data)
+
+            _save_memory(
+                state, chat_history,
+                original_question
+            )
+
+            return state
+
 
     # ==================================================
     # DIRECT API ROUTING — READ OPERATIONS
@@ -495,40 +666,6 @@ def employee_query(state):
 
         # Let LLM extract manager name via SQL fallback
         pass
-
-    # --------------------------------------------------
-    # GET BY EMPLOYEE ID ROUTE
-    # e.g. "show employee 42", "details of id 7"
-    # --------------------------------------------------
-    id_keywords = [
-        "employee id", "employee number",
-        "show employee", "details of employee",
-        "fetch employee", "get employee"
-    ]
-
-    if any(kw in question_lower for kw in id_keywords):
-
-        emp_id = extract_employee_id(question_lower)
-
-        if emp_id:
-
-            response = requests.get(
-                f"{BASE_URL}/employees/{emp_id}"
-            )
-
-            data = response.json()
-
-            if "error" in data:
-
-                state["response"] = data["error"]
-
-            else:
-
-                state["response"] = format_rows([data])
-
-            _save_memory(state, chat_history, original_question)
-
-            return state
 
     # ==================================================
     # SQL FALLBACK — LLM GENERATES QUERY
@@ -778,53 +915,168 @@ SQL:"""
 # WRITE OPERATION HANDLERS
 # ==================================================
 
+# Required fields for creating an employee
+REQUIRED_EMPLOYEE_FIELDS = [
+    "employee_name",
+    "age",
+    "gender",
+    "department",
+    "designation",
+    "salary",
+    "experience_years",
+    "city",
+    "manager_name",
+    "employment_type"
+]
+
+FIELD_LABELS = {
+    "employee_name":    "name",
+    "age":              "age",
+    "gender":           "gender (Male/Female/Other)",
+    "department":       "department (e.g. IT, HR, Finance, Sales)",
+    "designation":      "designation (e.g. Engineer, Manager, Analyst)",
+    "salary":           "salary (integer)",
+    "experience_years": "experience in years (integer)",
+    "city":             "city (e.g. Hyderabad, Bangalore, Mumbai)",
+    "manager_name":     "manager name",
+    "employment_type":  "employment type (Full-time/Part-time/Contract/Freelance/Intern)"
+}
+
+
+def _extract_create_fields(question):
+    """
+    Extracts employee fields directly using regex.
+    No LLM involved — fast and reliable.
+    """
+
+    q = question.lower()
+    data = {}
+
+    # employee_name
+    m = re.search(
+        r'name\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)',
+        question,
+        re.IGNORECASE
+    )
+    if m:
+        data["employee_name"] = m.group(1).strip()
+
+    # age
+    m = re.search(r'age\s+(\d+)', q)
+    if m:
+        data["age"] = int(m.group(1))
+
+    # gender
+    for g in ["male", "female", "other"]:
+        if g in q:
+            data["gender"] = g.capitalize()
+            break
+
+    # salary
+    m = re.search(r'salary\s+(\d+)', q)
+    if m:
+        sal = int(m.group(1))
+        if "lakh" in q:
+            sal *= 100000
+        data["salary"] = sal
+
+    # experience_years
+    m = re.search(
+        r'experience[_\s]*years?\s+(\d+)|(\d+)\s+years?\s+(?:of\s+)?experience',
+        q
+    )
+    if m:
+        data["experience_years"] = int(m.group(1) or m.group(2))
+
+    # city
+    for city in [
+        "hyderabad", "bangalore", "chennai",
+        "mumbai", "pune", "delhi", "noida"
+    ]:
+        if city in q:
+            data["city"] = city.capitalize()
+            break
+
+    # department
+    for dept in [
+        "hr", "it", "finance", "marketing",
+        "operations", "sales", "engineering",
+        "legal", "admin", "support",
+        "cybersecurity", "data engineering", "ai/ml"
+    ]:
+        if dept in q:
+            data["department"] = dept.upper() if dept in ["hr", "it"] else dept.title()
+            break
+
+    # designation
+    for desig in [
+        "engineer", "manager", "analyst",
+        "developer", "director", "executive",
+        "associate", "consultant", "lead",
+        "intern", "scientist", "architect"
+    ]:
+        if desig in q:
+            data["designation"] = desig.title()
+            break
+
+    # employment_type
+    emp_map = {
+        "full-time": "Full-time",
+        "full time": "Full-time",
+        "part-time": "Part-time",
+        "part time": "Part-time",
+        "contract":  "Contract",
+        "freelance": "Freelance",
+        "intern":    "Intern",
+    }
+    for key, val in emp_map.items():
+        if key in q:
+            data["employment_type"] = val
+            break
+
+    # manager_name — look for "manager <name>" or "manager_name <name>"
+    m = re.search(
+        r'manager[_\s]*name\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)',
+        question,
+        re.IGNORECASE
+    )
+    if m:
+        data["manager_name"] = m.group(1).strip()
+
+    return data
+
+
 def _handle_create(question, question_lower):
     """
-    Uses LLM to extract employee fields
-    from the question and calls POST /employees.
+    Extracts employee fields using regex (no LLM).
+    If any required field is missing, asks the
+    user to provide it instead of sending nulls.
     """
 
-    extract_prompt = f"""
-Extract employee details from this request
-and return a JSON object with these exact keys:
+    employee_data = _extract_create_fields(question)
 
-  employee_name, age, gender, department,
-  designation, salary, experience_years,
-  city, manager_name, employment_type
+    # Find missing required fields
+    missing = [
+        FIELD_LABELS[field]
+        for field in REQUIRED_EMPLOYEE_FIELDS
+        if employee_data.get(field) is None
+    ]
 
-Rules:
-- Return ONLY valid JSON. No explanation.
-- No markdown. No backticks. No preamble.
-- If a field is missing, use null.
-- age, salary, experience_years must be integers.
-- employment_type must be exactly one of:
-  Full-time, Part-time, Contract, Freelance, Intern
-- Do NOT invent values not mentioned in the request.
+    if missing:
 
-Request: {question}
+        missing_list = "\n".join(
+            f"  - {m}" for m in missing
+        )
 
-Output:"""
-
-    response = llm.invoke(extract_prompt)
-
-    raw = (
-        response.content
-        .replace("```json", "")
-        .replace("```", "")
-        .strip()
-    )
+        return (
+            f"I need a few more details to create "
+            f"the employee. Please provide:\n"
+            f"{missing_list}"
+        )
 
     try:
 
-        employee_data = json.loads(raw)
-
-        # Remove null fields
-        employee_data = {
-            k: v
-            for k, v in employee_data.items()
-            if v is not None
-        }
-
+        # All fields present — call the API
         api_response = requests.post(
             f"{BASE_URL}/employees",
             json=employee_data
@@ -832,119 +1084,288 @@ Output:"""
 
         result = api_response.json()
 
-        print(f"[CREATE] API result: {result}")
-
         if "error" in result:
 
             return f"Failed to create employee: {result['error']}"
 
-        emp_id = (
-            result.get("employee_id")
-            or result.get("id")
-        )
+        emp_id = result.get("employee_id")
 
         return (
             f"Employee created successfully!\n"
-            f"Employee ID: {emp_id}"
+            f"Employee ID: {emp_id}\n"
+            f"Name: {employee_data.get('employee_name')}\n"
+            f"Department: {employee_data.get('department')}\n"
+            f"Designation: {employee_data.get('designation')}\n"
+            f"City: {employee_data.get('city')}\n"
+            f"Salary: {employee_data.get('salary')}\n"
+            f"Employment Type: {employee_data.get('employment_type')}"
         )
 
     except Exception as e:
 
         return (
-            f"Could not parse employee details "
-            f"from your request. Please provide: "
-            f"name, age, gender, department, "
-            f"designation, salary, experience, "
-            f"city, manager, and employment type.\n"
+            f"Could not create employee.\n"
             f"Error: {str(e)}"
         )
 
 
-def _handle_update(question, question_lower):
-    """
-    Uses LLM to extract employee ID and
-    update fields, then calls PUT /employees/{id}.
-    """
 
-    emp_id = extract_employee_id(question_lower)
+def _handle_update(
+    question,
+    question_lower
+):
+
+    emp_id = extract_employee_id(
+        question_lower
+    )
 
     if not emp_id:
 
         return (
-            "Please provide an employee ID "
-            "to update. Example: "
-            "'Update employee 42 salary to 90000'"
+            "Please provide an "
+            "employee ID.\n"
+            "Example:\n"
+            "'Update employee "
+            "42 salary to 90000'"
         )
 
-    extract_prompt = f"""
-Extract ONLY the fields explicitly mentioned
-to be changed in this request.
+    update_data = {}
 
-Available fields:
-  employee_name, age, gender, department,
-  designation, salary, experience_years,
-  city, manager_name, employment_type
-
-Rules:
-- Return ONLY valid JSON. No explanation.
-- No markdown. No backticks. No preamble.
-- Include ONLY fields the user explicitly mentions changing.
-- Do NOT invent or guess values for other fields.
-- salary, age, experience_years must be integers.
-
-Example:
-Request: update employee id 42 name shivani
-Output: {{"employee_name": "shivani"}}
-
-Example:
-Request: update employee 10 salary to 90000
-Output: {{"salary": 90000}}
-
-Request: {question}
-
-Output:"""
-
-    response = llm.invoke(extract_prompt)
-
-    raw = (
-        response.content
-        .replace("```json", "")
-        .replace("```", "")
-        .strip()
+    # -------------------------
+    # NAME
+    # -------------------------
+    m = re.search(
+        r'name\s+to\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+        question,
+        re.IGNORECASE
     )
+
+    if m:
+
+        update_data[
+            "employee_name"
+        ] = (
+            m.group(1)
+            .strip()
+            .title()
+        )
+
+    # -------------------------
+    # AGE
+    # -------------------------
+    m = re.search(
+        r'age\s+to\s+(\d+)',
+        question_lower
+    )
+
+    if m:
+
+        update_data[
+            "age"
+        ] = int(
+            m.group(1)
+        )
+
+    # -------------------------
+    # SALARY
+    # -------------------------
+    m = re.search(
+        r'salary\s+to\s+(\d+)',
+        question_lower
+    )
+
+    if m:
+
+        salary = int(
+            m.group(1)
+        )
+
+        if "lakh" in question_lower:
+            salary *= 100000
+
+        update_data[
+            "salary"
+        ] = salary
+
+    # -------------------------
+    # CITY
+    # -------------------------
+    m = re.search(
+        r'city\s+to\s+([A-Za-z\s]+?)(?=\s+(?:salary|department|designation|gender|manager|experience|employment|age|name|$))',
+        question,
+        re.IGNORECASE
+    )
+
+    if m:
+
+        update_data[
+            "city"
+        ] = (
+            m.group(1)
+            .strip()
+            .title()
+        )
+
+    # -------------------------
+    # DEPARTMENT
+    # -------------------------
+    m = re.search(
+        r'department\s+to\s+([A-Za-z\s]+?)(?=\s+(?:salary|city|designation|gender|manager|experience|employment|age|name|$))',
+        question,
+        re.IGNORECASE
+    )
+
+    if m:
+
+        dept = (
+            m.group(1)
+            .strip()
+        )
+
+        update_data[
+            "department"
+        ] = (
+            dept.upper()
+            if dept.lower()
+            in ["it", "hr"]
+            else dept.title()
+        )
+
+    # -------------------------
+    # DESIGNATION
+    # -------------------------
+    m = re.search(
+        r'designation\s+to\s+([A-Za-z\s]+?)(?=\s+(?:salary|city|department|gender|manager|experience|employment|age|name|$))',
+        question,
+        re.IGNORECASE
+    )
+
+    if m:
+
+        update_data[
+            "designation"
+        ] = (
+            m.group(1)
+            .strip()
+            .title()
+        )
+
+    # -------------------------
+    # GENDER
+    # -------------------------
+    m = re.search(
+        r'gender\s+to\s+(male|female|other)',
+        question_lower
+    )
+
+    if m:
+
+        update_data[
+            "gender"
+        ] = (
+            m.group(1)
+            .capitalize()
+        )
+
+    # -------------------------
+    # EXPERIENCE
+    # -------------------------
+    m = re.search(
+        r'(?:experience|experience years)\s+to\s+(\d+)',
+        question_lower
+    )
+
+    if m:
+
+        update_data[
+            "experience_years"
+        ] = int(
+            m.group(1)
+        )
+
+    # -------------------------
+    # MANAGER
+    # -------------------------
+    m = re.search(
+        r'manager(?:\s+name)?\s+to\s+([A-Za-z\s]+?)(?=\s+(?:salary|city|department|designation|gender|experience|employment|age|name|$))',
+        question,
+        re.IGNORECASE
+    )
+
+    if m:
+
+        update_data[
+            "manager_name"
+        ] = (
+            m.group(1)
+            .strip()
+            .title()
+        )
+
+    # -------------------------
+    # EMPLOYMENT TYPE
+    # -------------------------
+    m = re.search(
+        r'(?:employment(?:\s+type)?)\s+to\s+(full-time|full time|part-time|part time|contract|freelance|intern)',
+        question_lower
+    )
+
+    if m:
+
+        emp_type = (
+            m.group(1)
+            .replace(
+                " ",
+                "-"
+            )
+            .title()
+        )
+
+        update_data[
+            "employment_type"
+        ] = emp_type
+
+    if not update_data:
+
+        return (
+            "No fields to update "
+            "were identified.\n"
+            "Example:\n"
+            "'update employee "
+            "1001 salary to 90000'"
+        )
 
     try:
 
-        update_data = json.loads(raw)
-
-        if not update_data:
-
-            return "No fields to update were identified."
-
-        api_response = requests.put(
+        response = requests.put(
             f"{BASE_URL}/employees/{emp_id}",
             json=update_data
         )
 
-        result = api_response.json()
+        result = (
+            response.json()
+        )
 
         if "error" in result:
 
-            return f"Failed to update: {result['error']}"
-
-        updated = result.get("updated_fields", [])
+            return (
+                f"Update failed:\n"
+                f"{result['error']}"
+            )
 
         return (
-            f"Employee {emp_id} updated successfully!\n"
-            f"Updated fields: {', '.join(updated)}"
+            f"Employee "
+            f"{emp_id} "
+            f"updated successfully!\n"
+            f"Updated fields: "
+            f"{', '.join(update_data.keys())}"
         )
 
     except Exception as e:
 
         return (
-            f"Could not parse update details. "
-            f"Example: 'Update employee 42 salary to 90000'\n"
-            f"Error: {str(e)}"
+            f"Update failed:\n"
+            f"{str(e)}"
         )
 
 
