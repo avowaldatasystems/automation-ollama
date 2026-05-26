@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from sqlalchemy import text
+from pydantic import BaseModel
+from typing import Optional
 
 from db import engine
 
@@ -204,8 +206,6 @@ def get_by_department(
             for row in rows
         ]
     }
-
-
 # -----------------------------------
 # DESIGNATION API
 # -----------------------------------
@@ -448,75 +448,299 @@ def get_by_gender(
     }
 
 
+# ==================================================
+# CREATE MODEL
+# ==================================================
+class EmployeeCreate(BaseModel):
+    employee_name: str
+    age: int
+    gender: str
+    department: str
+    designation: str
+    salary: int
+    experience_years: int
+    city: str
+    manager_name: str
+    employment_type: str
+
+
+# ==================================================
+# UPDATE MODEL
+# ==================================================
+class EmployeeUpdate(BaseModel):
+    employee_name: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    salary: Optional[int] = None
+    experience_years: Optional[int] = None
+    city: Optional[str] = None
+    manager_name: Optional[str] = None
+    employment_type: Optional[str] = None
+
+
 # -----------------------------------
-# NORMAL SQL QUERY API
+# CREATE EMPLOYEE API
 # -----------------------------------
-@app.post("/query")
-def execute_query(
-    sql: str
+@app.post("/employees")
+def create_employee(
+    employee: EmployeeCreate
 ):
 
     try:
 
-        dangerous_words = [
-            "drop",
-            "delete",
-            "update",
-            "alter",
-            "truncate",
-            "insert",
-            "create"
-        ]
-
-        sql_lower = sql.lower()
-
-        if not sql_lower.startswith(
-            "select"
-        ):
-            return {
-                "error":
-                "Only SELECT queries are allowed."
-            }
-
-        if any(
-            word in sql_lower
-            for word
-            in dangerous_words
-        ):
-            return {
-                "error":
-                "Unsafe SQL blocked."
-            }
-
-        with engine.connect() as conn:
+        with engine.begin() as conn:
 
             result = conn.execute(
-                text(sql)
+                text("""
+                    INSERT INTO employees (
+                        employee_name,
+                        age,
+                        gender,
+                        department,
+                        designation,
+                        salary,
+                        experience_years,
+                        city,
+                        manager_name,
+                        employment_type
+                    )
+                    VALUES (
+                        :employee_name,
+                        :age,
+                        :gender,
+                        :department,
+                        :designation,
+                        :salary,
+                        :experience_years,
+                        :city,
+                        :manager_name,
+                        :employment_type
+                    )
+                    RETURNING employee_id
+                """),
+                {
+                    "employee_name":
+                    employee.employee_name,
+
+                    "age":
+                    employee.age,
+
+                    "gender":
+                    employee.gender,
+
+                    "department":
+                    employee.department,
+
+                    "designation":
+                    employee.designation,
+
+                    "salary":
+                    employee.salary,
+
+                    "experience_years":
+                    employee.experience_years,
+
+                    "city":
+                    employee.city,
+
+                    "manager_name":
+                    employee.manager_name,
+
+                    "employment_type":
+                    employee.employment_type
+                }
             )
 
-            rows = result.fetchall()
-
-            columns = result.keys()
-
-        formatted_rows = []
-
-        for row in rows:
-
-            row_dict = {}
-
-            for col, val in zip(
-                columns,
-                row
-            ):
-                row_dict[col] = val
-
-            formatted_rows.append(
-                row_dict
+            employee_id = (
+                result.scalar()
             )
 
         return {
-            "rows":
-            formatted_rows
+            "message":
+            "Employee added successfully",
+
+            "employee_id":
+            employee_id
+        }
+
+    except Exception as e:
+
+        return {
+            "error":
+            str(e)
+        }
+    # -----------------------------------
+# UPDATE EMPLOYEE API
+# -----------------------------------
+@app.put("/employees/{employee_id}")
+def update_employee(
+    employee_id: int,
+    employee: EmployeeUpdate
+):
+
+    try:
+
+        update_data = (
+            employee.dict(
+                exclude_unset=True
+            )
+        )
+
+        if not update_data:
+
+            return {
+                "message":
+                "No fields provided "
+                "for update"
+            }
+
+        set_clause = ", ".join(
+            [
+                f"{key} = :{key}"
+                for key
+                in update_data.keys()
+            ]
+        )
+
+        update_data[
+            "employee_id"
+        ] = employee_id
+
+        with engine.begin() as conn:
+
+            result = conn.execute(
+                text(f"""
+                    UPDATE employees
+                    SET {set_clause}
+                    WHERE employee_id
+                    = :employee_id
+                """),
+                update_data
+            )
+
+        if result.rowcount == 0:
+
+            return {
+                "message":
+                "Employee ID "
+                "not found"
+            }
+
+        return {
+            "message":
+            "Employee updated "
+            "successfully",
+
+            "employee_id":
+            employee_id,
+
+            "updated_fields":
+            list(
+                update_data.keys()
+            )[:-1]
+        }
+
+    except Exception as e:
+
+        return {
+            "error":
+            str(e)
+        }
+
+
+# -----------------------------------
+# DELETE EMPLOYEE API
+# -----------------------------------
+@app.delete("/employees/{employee_id}")
+def delete_employee(
+    employee_id: int,
+    confirm: bool = Query(
+        False
+    )
+):
+
+    try:
+
+        with engine.begin() as conn:
+
+            employee_result = (
+                conn.execute(
+                    text("""
+                        SELECT
+                        employee_name
+                        FROM employees
+                        WHERE employee_id
+                        = :employee_id
+                    """),
+                    {
+                        "employee_id":
+                        employee_id
+                    }
+                )
+            )
+
+            employee = (
+                employee_result
+                .fetchone()
+            )
+
+            if not employee:
+
+                return {
+                    "message":
+                    "Employee ID "
+                    "not found"
+                }
+
+            employee_name = (
+                employee[0]
+            )
+
+            if not confirm:
+
+                return {
+                    "message":
+                    f"Are you sure "
+                    f"you want to "
+                    f"delete employee "
+                    f"'{employee_name}' "
+                    f"(ID: "
+                    f"{employee_id})?",
+
+                    "confirmation_required":
+                    True,
+
+                    "how_to_confirm":
+                    f"/employees/"
+                    f"{employee_id}"
+                    f"?confirm=true"
+                }
+
+            conn.execute(
+                text("""
+                    DELETE
+                    FROM employees
+                    WHERE employee_id
+                    = :employee_id
+                """),
+                {
+                    "employee_id":
+                    employee_id
+                }
+            )
+
+        return {
+            "message":
+            "Employee deleted "
+            "successfully",
+
+            "employee_id":
+            employee_id,
+
+            "employee_name":
+            employee_name
         }
 
     except Exception as e:

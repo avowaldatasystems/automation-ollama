@@ -28,6 +28,10 @@ if "chat_history" not in st.session_state:
 
     st.session_state.chat_history = []
 
+if "pending_delete" not in st.session_state:
+
+    st.session_state.pending_delete = None
+
 
 # -------------------------
 # Show Chat History
