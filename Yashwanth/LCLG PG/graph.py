@@ -7,9 +7,11 @@ import re
 import json
 import requests
 
+from sqlalchemy import text
+from db import engine
+
 from llm import llm
 from state import AgentState
-
 
 BASE_URL = "http://127.0.0.1:8001"
 
@@ -99,13 +101,25 @@ def extract_numbers(text):
 
 def extract_employee_id(text):
     """
-    Extracts a numeric employee ID
-    from a question string.
+    Extract employee ID only when
+    explicitly mentioned.
+
+    Examples:
+    - employee id 42
+    - id 42
+    - employee 42
     """
 
-    match = re.search(r'\b(\d+)\b', text)
+    match = re.search(
+        r'(?:employee\s+id|employee|id)\s+(\d+)',
+        text,
+        re.IGNORECASE
+    )
 
-    return int(match.group(1)) if match else None
+    return (
+        int(match.group(1))
+        if match else None
+    )
 
 
 # ==================================================
@@ -457,81 +471,289 @@ def employee_query(state):
     # AGE ROUTE
     # --------------------------------------------------
     age_keywords = [
-        "age", "older than",
-        "above age", "age greater than",
-        "aged above", "aged more than"
+        "age",
+        "older than",
+        "greater than",
+        "more than",
+        "above",
+        "less than",
+        "younger than",
+        "below",
+        "<",
+        ">"
     ]
 
-    if any(kw in question_lower for kw in age_keywords):
+    if any(
+        kw in question_lower
+        for kw in age_keywords
+    ):
 
-        numbers = extract_numbers(question_lower)
+        numbers = extract_numbers(
+            question_lower
+        )
 
         if numbers:
 
-            data = requests.get(
-                f"{BASE_URL}/employees/age",
-                params={"age": numbers[0]}
-            ).json()
+            age = numbers[0]
 
-            state["response"] = format_count_response(data)
+            # -------------------------
+            # LESS THAN (<)
+            # -------------------------
+            if (
+                "<" in question_lower
+                or "less than" in question_lower
+                or "younger than" in question_lower
+                or "below" in question_lower
+            ):
 
-            _save_memory(state, chat_history, original_question)
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE age < {age}
+                    LIMIT 100
+                """
+
+            # -------------------------
+            # GREATER THAN (>)
+            # -------------------------
+            elif (
+                ">" in question_lower
+                or "greater than" in question_lower
+                or "older than" in question_lower
+                or "more than" in question_lower
+                or "above" in question_lower
+            ):
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE age > {age}
+                    LIMIT 100
+                """
+
+            # -------------------------
+            # EQUAL (=)
+            # -------------------------
+            else:
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE age = {age}
+                    LIMIT 100
+                """
+
+            with engine.connect() as conn:
+
+                result = conn.execute(
+                    text(sql_query)
+                )
+
+                rows = result.fetchall()
+
+            formatted_rows = [
+                dict(row._mapping)
+                for row in rows
+            ]
+
+            state["response"] = format_rows(
+                formatted_rows
+            )
+
+            _save_memory(
+                state,
+                chat_history,
+                original_question
+            )
 
             return state
 
     # --------------------------------------------------
     # SALARY ROUTE
     # --------------------------------------------------
-    salary_keywords = [
-        "salary", "earning",
-        "earns", "lakh", "income", "pay"
-    ]
-
-    if any(kw in question_lower for kw in salary_keywords):
-
-        numbers = extract_numbers(question_lower)
+    if (
+        "salary" in question_lower
+        or "earning" in question_lower
+        or "earns" in question_lower
+        or "income" in question_lower
+        or "pay" in question_lower
+        or "lakh" in question_lower
+    ):
+        
+        numbers = extract_numbers(
+            question_lower
+        )
 
         if numbers:
 
             salary = numbers[0]
 
+            # lakh support
             if "lakh" in question_lower:
                 salary *= 100000
 
-            data = requests.get(
-                f"{BASE_URL}/employees/salary",
-                params={"salary": salary}
-            ).json()
+            # -------------------------
+            # LESS THAN (<)
+            # -------------------------
+            if (
+                "<" in question_lower
+                or "less than" in question_lower
+                or "below" in question_lower
+            ):
 
-            state["response"] = format_count_response(data)
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE salary < {salary}
+                    LIMIT 100
+                """
 
-            _save_memory(state, chat_history, original_question)
+            # -------------------------
+            # GREATER THAN (>)
+            # -------------------------
+            elif (
+                ">" in question_lower
+                or "greater than" in question_lower
+                or "more than" in question_lower
+                or "above" in question_lower
+            ):
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE salary > {salary}
+                    LIMIT 100
+                """
+
+            # -------------------------
+            # EQUAL (=)
+            # -------------------------
+            else:
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE salary = {salary}
+                    LIMIT 100
+                """
+
+            with engine.connect() as conn:
+
+                result = conn.execute(
+                    text(sql_query)
+                )
+
+                rows = result.fetchall()
+
+            formatted_rows = [
+                dict(row._mapping)
+                for row in rows
+            ]
+
+            state["response"] = format_rows(
+                formatted_rows
+            )
+
+            _save_memory(
+                state,
+                chat_history,
+                original_question
+            )
 
             return state
 
     # --------------------------------------------------
     # EXPERIENCE ROUTE
     # --------------------------------------------------
-    experience_keywords = [
-        "experience", "years of experience",
-        "experienced more than", "worked for more than",
-        "experience greater than", "more than",
-    ]
+    if (
+        "experience" in question_lower
+        or "years of experience" in question_lower
+        or "experienced" in question_lower
+        or "worked for" in question_lower
+    ):
 
-    if any(kw in question_lower for kw in experience_keywords):
+        print("EXPERIENCE ROUTE TRIGGERED")
 
-        numbers = extract_numbers(question_lower)
+        numbers = extract_numbers(
+            question_lower
+        )
 
         if numbers:
 
-            data = requests.get(
-                f"{BASE_URL}/employees/experience",
-                params={"years": numbers[0]}
-            ).json()
+            years = numbers[0]
 
-            state["response"] = format_count_response(data)
+            print(
+                "Experience extracted:",
+                years
+            )
 
-            _save_memory(state, chat_history, original_question)
+            # -------------------------
+            # LESS THAN (<)
+            # -------------------------
+            if (
+                "<" in question_lower
+                or "less than" in question_lower
+                or "below" in question_lower
+            ):
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE experience_years < {years}
+                    LIMIT 100
+                """
+
+            # -------------------------
+            # GREATER THAN (>)
+            # -------------------------
+            elif (
+                ">" in question_lower
+                or "greater than" in question_lower
+                or "more than" in question_lower
+                or "above" in question_lower
+            ):
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE experience_years > {years}
+                    LIMIT 100
+                """
+
+            # -------------------------
+            # EQUAL (=)
+            # -------------------------
+            else:
+
+                sql_query = f"""
+                    SELECT *
+                    FROM employees
+                    WHERE experience_years = {years}
+                    LIMIT 100
+                """
+
+            with engine.connect() as conn:
+
+                result = conn.execute(
+                    text(sql_query)
+                )
+
+                rows = result.fetchall()
+
+            formatted_rows = [
+                dict(row._mapping)
+                for row in rows
+            ]
+
+            state["response"] = format_rows(
+                formatted_rows
+            )
+
+            _save_memory(
+                state,
+                chat_history,
+                original_question
+            )
 
             return state
 
@@ -608,64 +830,60 @@ def employee_query(state):
             return state
 
     # --------------------------------------------------
-    # EMPLOYMENT TYPE ROUTE
-    # --------------------------------------------------
-    employment_types = [
-        "full-time", "full time",
-        "part-time", "part time",
-        "contract", "freelance", "intern"
-    ]
-
-    for emp_type in employment_types:
-
-        if emp_type in question_lower:
-
-            normalized = emp_type.replace(" ", "-")
-
-            data = requests.get(
-                f"{BASE_URL}/employees/employment_type",
-                params={"employment_type": normalized}
-            ).json()
-
-            state["response"] = format_count_response(data)
-
-            _save_memory(state, chat_history, original_question)
-
-            return state
-
-    # --------------------------------------------------
-    # GENDER ROUTE
-    # --------------------------------------------------
-    genders = ["male", "female", "other"]
-
-    for gender in genders:
-
-        if gender in question_lower:
-
-            data = requests.get(
-                f"{BASE_URL}/employees/gender",
-                params={"gender": gender}
-            ).json()
-
-            state["response"] = format_count_response(data)
-
-            _save_memory(state, chat_history, original_question)
-
-            return state
-
-    # --------------------------------------------------
     # MANAGER ROUTE
-    # e.g. "employees under John Smith"
     # --------------------------------------------------
     manager_keywords = [
-        "under manager", "reports to",
-        "managed by", "under"
+        "manager",
+        "manager name",
+        "under manager",
+        "reports to",
+        "managed by",
+        "under"
     ]
 
-    if any(kw in question_lower for kw in manager_keywords):
+    if any(
+        kw in question_lower
+        for kw in manager_keywords
+    ):
 
-        # Let LLM extract manager name via SQL fallback
-        pass
+        m = re.search(
+            r'(?:manager(?:\s+name)?\s+|managed\s+by\s+|reports\s+to\s+|under\s+)([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+            question,
+            re.IGNORECASE
+        )
+
+        if m:
+
+            manager_name = (
+                m.group(1)
+                .strip()
+            )
+
+            print(
+                "Manager extracted:",
+                manager_name
+            )
+
+            response = requests.get(
+                f"{BASE_URL}/employees/manager",
+                params={
+                    "manager": manager_name
+                }
+            )
+
+            data = response.json()
+
+            state["response"] = (
+                format_count_response(data)
+            )
+
+            _save_memory(
+                state,
+                chat_history,
+                original_question
+            )
+
+            return state
 
     # ==================================================
     # SQL FALLBACK — LLM GENERATES QUERY
