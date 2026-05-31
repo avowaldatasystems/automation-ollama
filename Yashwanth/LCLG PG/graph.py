@@ -13,7 +13,7 @@ from db import engine
 from llm import llm
 from state import AgentState
 
-BASE_URL = "http://127.0.0.1:8001"
+BASE_URL = "http://127.0.0.1:8000"
 
 
 # ==================================================
