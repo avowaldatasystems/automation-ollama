@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/uploads/
+data/documents/
+.streamlit/
+.pytest_cache/
+*.log
+tools/qdrant/qdrant.exe
+tools/qdrant/qdrant-download.zip
+data/qdrant_storage/
